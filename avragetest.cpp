@@ -52,9 +52,9 @@ string generateRandomString() {
 
 // 单个线程测试函数
 void testThread() {
-    while (!collisionFound && totalTests < maxTests) {
+    while (totalTests < maxTests) {
         string input = generateRandomString();
-        string output = fullsafe(input);
+        string output = fullsafe(input,-2);
 
         lock_guard<mutex> lock(mapMutex);
 
@@ -66,7 +66,6 @@ void testThread() {
             cerr << "\n发现碰撞!\n输入1: " << it->second
                  << "\n输入2: " << input
                  << "\n输出:   " << output << endl;
-            return;
         }
         outputMap[output] = input;
 
@@ -115,7 +114,7 @@ void printHotColdChars() {
 }
 
 int main(int argc, char* argv[]) {
-    inputLength = 6;
+    inputLength = 10;
     threadCount = thread::hardware_concurrency();
     maxTests = 2000000;
 
@@ -138,7 +137,7 @@ int main(int argc, char* argv[]) {
         threads.emplace_back(testThread);
 
     // 主线程监控进度和输出热门/冷门字符
-    while (!collisionFound && totalTests < maxTests) {
+    while (totalTests < maxTests) {
         this_thread::sleep_for(chrono::seconds(2));
 
         long long tested = totalTests;

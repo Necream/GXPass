@@ -1,4 +1,4 @@
-﻿// Version: 1.4.0    Latest Version: https://github.com/Necream/GXPass
+﻿// Version: 1.5.0    Latest Version: https://github.com/Necream/GXPass
 #ifndef __GXPASS_HPP__
 #define __GXPASS_HPP__
 
@@ -180,8 +180,7 @@ namespace GXPass {
         }
         return ret;
     }
-    // 数字转安全字符映射辅助函数私有实现
-    // 不可以外部调用，防止错误使用
+    // 数字转安全字符映射辅助函数私有实现，不可以外部调用，防止错误使用
     std::string number2safestring_Private_CannotUse(std::string data, const std::string& chars = charset) {
         int charsLen=charset.size();
         std::string prefix="";
@@ -233,16 +232,33 @@ namespace GXPass {
         return ret;
     }
 
+    // 计算安全密码长度，默认最大碰撞概率1e-6，字符集大小92
+    int computeSafePassLen(int inputLength, int charsetSize = sizeof(charset), double maxCollisionProb = 1e-6) {
+        unsigned long long M = 1;
+        for (int i = 0; i < inputLength; ++i) M *= charsetSize;
+
+        double N = (double)(M*M) / (-2.0 * std::log(1.0 - maxCollisionProb));
+        int L = (int)std::ceil(std::log(N) / std::log(charsetSize));
+        return L;
+    }
+
 
     // Full safety Pass
     template<class type = unsigned long long>
-    std::string fullsafe(const std::string data, const int PassLen = 256, int version = -1) {
-        std::string OriginalPass=number2safestring(compile<type>(data, version));
+    std::string fullsafe(const std::string data, int PassLen = 256, std::string chars = charset, int version = -1) {
+        std::string Inputdata=data;
+        for(int i=0;i<Inputdata.size();i++){
+            Inputdata[i]=(Inputdata[i]+i)%127;
+        }
+        std::string OriginalPass=number2safestring(compile<type>(Inputdata, version), chars);
+        if(PassLen==-1) PassLen=OriginalPass.size();
+        if(PassLen==-2) PassLen=computeSafePassLen(data.size(),chars.size(),1e-6);
+        if(PassLen<=0) return "";
         std::string FinalPass="";
         FinalPass+=OriginalPass[0];
         std::string StepPass=OriginalPass;
         for(int i=1;i<PassLen;i++){
-            StepPass=number2safestring(compile<type>(StepPass, version));
+            StepPass=number2safestring(compile<type>(StepPass, version), chars);
             FinalPass+=StepPass[i%StepPass.size()];
         }
         return FinalPass;
