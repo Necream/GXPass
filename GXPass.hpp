@@ -1,4 +1,4 @@
-// Version: 1.3.0    Latest Version: https://github.com/Necream/GXPass
+﻿// Version: 1.4.0    Latest Version: https://github.com/Necream/GXPass
 #ifndef __GXPASS_HPP__
 #define __GXPASS_HPP__
 
@@ -8,6 +8,13 @@
 #include <algorithm>
 
 namespace GXPass {
+
+    // 92个可打印字符
+    const std::string charset =
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789"
+        "!@#$%^&*()_+-=[]{}|;':\",./<>?";
 
     // 类型转换工具：c1类型转c2类型（如数字转字符串）
     template<class c1, class c2>
@@ -173,18 +180,70 @@ namespace GXPass {
         }
         return ret;
     }
+    // 数字转安全字符映射辅助函数私有实现
+    // 不可以外部调用，防止错误使用
+    std::string number2safestring_Private_CannotUse(std::string data, const std::string& chars = charset) {
+        int charsLen=charset.size();
+        std::string prefix="";
+        std::string ret="";
+        while(!data.empty()){
+            prefix="";
+            prefix=data.substr(0,2);
+            int number=c12c2<std::string,int>(prefix);
+            double rate = (double)(charsLen) / 100.0;
+            int index=(int)(number*rate)%charsLen;
+            // std::cout<<index<<" "<<chars[index]<<std::endl;
+            ret+=chars[index];
+            // std::cout<<ret<<std::endl;
+            data.erase(0,2);
+        }
+        return ret;
+    }
+    // 数字转安全字符映射辅助函数（确定性扰动版）
+    std::string number2safestring(std::string data, const std::string& chars = charset) {
+        int dataLen = data.size();
+        int charsLen = chars.size();
+        std::string ret = "";
+
+        // 如果长度为奇数，添加一个数字，使长度为偶数
+        if (dataLen % 2 == 1) {
+            int sum = 0;
+            for (char c : data) sum += (c - '0');
+            data += '0' + (sum % 10);
+            dataLen++;
+        }
+
+        // 计算一个固定哈希值作为扰动基
+        unsigned long long hash = 14695981039346656037ull; // FNV offset basis
+        for (char c : data) {
+            hash ^= static_cast<unsigned long long>(c);
+            hash *= 1099511628211ull; // FNV prime
+        }
+
+        // 按两位一组映射到字符表
+        for (int i = 0; i < dataLen; i += 2) {
+            int num = (data[i] - '0') * 10 + (data[i + 1] - '0');
+            // 添加确定性扰动：哈希混合
+            int index = (num + (hash % charsLen)) % charsLen;
+            ret += chars[index];
+            // 更新哈希用于下一轮扰动
+            hash = hash * 31 + index;
+        }
+
+        return ret;
+    }
+
 
     // Full safety Pass
     template<class type = unsigned long long>
-    std::string fullsafe(const std::string data, int version = -1) {
-        std::string OriginalPass=number2ABC(compile<type>(data, version));
-        int PassLen=OriginalPass.size();
+    std::string fullsafe(const std::string data, const int PassLen = 256, int version = -1) {
+        std::string OriginalPass=number2safestring(compile<type>(data, version));
         std::string FinalPass="";
         FinalPass+=OriginalPass[0];
         std::string StepPass=OriginalPass;
         for(int i=1;i<PassLen;i++){
-            StepPass=number2ABC(compile<type>(StepPass, version));
-            FinalPass+=StepPass[i];
+            StepPass=number2safestring(compile<type>(StepPass, version));
+            FinalPass+=StepPass[i%StepPass.size()];
         }
         return FinalPass;
     }
