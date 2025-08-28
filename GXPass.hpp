@@ -1,4 +1,4 @@
-﻿// Version: 1.5.0    Latest Version: https://github.com/Necream/GXPass
+﻿// Version: 1.5.1    Latest Version: https://github.com/Necream/GXPass
 #ifndef __GXPASS_HPP__
 #define __GXPASS_HPP__
 
@@ -233,26 +233,24 @@ namespace GXPass {
     }
 
     // 计算安全密码长度，默认最大碰撞概率1e-6，字符集大小92
-    int computeSafePassLen(int inputLength, int charsetSize = sizeof(charset), double maxCollisionProb = 1e-6) {
-        unsigned long long M = 1;
-        for (int i = 0; i < inputLength; ++i) M *= charsetSize;
-
-        double N = (double)(M*M) / (-2.0 * std::log(1.0 - maxCollisionProb));
-        int L = (int)std::ceil(std::log(N) / std::log(charsetSize));
-        return L;
+    int computeSafePassLen(int inputLength, int minPassLen = 6) {
+        if(inputLength<minPassLen){
+            return minPassLen/inputLength*1000;
+        }else{
+            return minPassLen*1000/inputLength+128;
+        }
     }
-
 
     // Full safety Pass
     template<class type = unsigned long long>
-    std::string fullsafe(const std::string data, int PassLen = 256, std::string chars = charset, int version = -1) {
+    std::string fullsafe(const std::string data, int PassLen = 256, std::string chars = charset,int minPassLen = 6, int version = -1){ // 新增参数
         std::string Inputdata=data;
         for(int i=0;i<Inputdata.size();i++){
             Inputdata[i]=(Inputdata[i]+i)%127;
         }
         std::string OriginalPass=number2safestring(compile<type>(Inputdata, version), chars);
         if(PassLen==-1) PassLen=OriginalPass.size();
-        if(PassLen==-2) PassLen=computeSafePassLen(data.size(),chars.size(),1e-6);
+        if(PassLen==-2) PassLen=computeSafePassLen(data.size(),minPassLen);
         if(PassLen<=0) return "";
         std::string FinalPass="";
         FinalPass+=OriginalPass[0];
@@ -263,6 +261,7 @@ namespace GXPass {
         }
         return FinalPass;
     }
+
 
 } // namespace GXPass
 

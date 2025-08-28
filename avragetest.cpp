@@ -12,6 +12,7 @@
 #include <cmath>
 #include "GXPass.hpp"
 
+#define Generate(Input) GXPass::fullsafe(Input,-2)
 using namespace std;
 using namespace GXPass;
 
@@ -54,7 +55,7 @@ string generateRandomString() {
 void testThread() {
     while (totalTests < maxTests) {
         string input = generateRandomString();
-        string output = fullsafe(input,-2);
+        string output = Generate(input);
 
         lock_guard<mutex> lock(mapMutex);
 
@@ -114,7 +115,7 @@ void printHotColdChars() {
 }
 
 int main(int argc, char* argv[]) {
-    inputLength = 10;
+    inputLength = 11;
     threadCount = thread::hardware_concurrency();
     maxTests = 2000000;
 
@@ -126,7 +127,8 @@ int main(int argc, char* argv[]) {
     cout << "输入长度: " << inputLength
          << " | 线程数量: " << threadCount
          << " | 最大测试数: " << maxTests
-         << " | 桶数量: " << bucketCount << endl;
+         << " | 桶数量: " << bucketCount
+         << " | 输出长度：" << Generate(generateRandomString()).size() << endl;
     cout << "开始测试..." << endl;
 
     auto start = chrono::high_resolution_clock::now();
