@@ -1,4 +1,4 @@
-﻿// Version: 1.5.1    Latest Version: https://github.com/Necream/GXPass
+﻿// Version: 1.5.2    Latest Version: https://github.com/Necream/GXPass
 #ifndef __GXPASS_HPP__
 #define __GXPASS_HPP__
 
@@ -9,8 +9,8 @@
 
 namespace GXPass {
 
-    // 92个可打印字符
-    const std::string charset =
+    // 92个可打印字符，可自行修改
+    std::string charset =
         "abcdefghijklmnopqrstuvwxyz"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "0123456789"

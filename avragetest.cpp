@@ -115,9 +115,9 @@ void printHotColdChars() {
 }
 
 int main(int argc, char* argv[]) {
-    inputLength = 11;
+    inputLength = 64;
     threadCount = thread::hardware_concurrency();
-    maxTests = 2000000;
+    maxTests = 100000;
 
     if (argc > 1) inputLength = stoi(argv[1]);
     if (argc > 2) threadCount = stoi(argv[2]);

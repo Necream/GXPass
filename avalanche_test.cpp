@@ -75,14 +75,14 @@ int main() {
     double maxAvalancheRate = 0;
     double avrageAvalancheRate = -1;
     // 测试不同长度的输入（从10位到50位，步长为10）
-    for (int length = 1000,j=0; length <= 5000&&j<1000; length += 0,j++) {
-        // cout << "测试输入长度: " << length << endl;
+    for (int length = 10,j=0; length <= 500; length += 10,j++) {
+        cout << "测试输入长度: " << length << endl;
         
         // 生成原始输入
         string original = generateRandomString(length);
-        // cout << "原始输入前" << min(10, length) << "位: " << original.substr(0, 10);
-        // if (length > 10) cout << "...";
-        // cout << endl;
+        cout << "原始输入前" << min(10, length) << "位: " << original.substr(0, 10);
+        if (length > 10) cout << "...";
+        cout << endl;
         
         // 生成修改1位的输入（随机选择修改位置）
         random_device rd;
@@ -90,8 +90,8 @@ int main() {
         uniform_int_distribution<> dist(0, length - 1);
         int modifyPos = dist(generator);
         string modified = modifyOneCharacter(original, modifyPos);
-        // cout << "修改位置: " << modifyPos << " (原始字符: " << original[modifyPos] 
-            //  << ", 修改后: " << modified[modifyPos] << ")" << endl;
+        cout << "修改位置: " << modifyPos << " (原始字符: " << original[modifyPos] 
+             << ", 修改后: " << modified[modifyPos] << ")" << endl;
         
         // 计算原始输出和修改后的输出
         auto start = chrono::high_resolution_clock::now();
@@ -103,9 +103,9 @@ int main() {
         double avalancheRate = calculateDifferenceRate(originalOutput, modifiedOutput);
         
         // 输出结果
-        // cout << "原始输出长度: " << originalOutput.size() 
-            //  << ", 修改后输出长度: " << modifiedOutput.size() << endl;
-        // cout << "雪崩率: " << avalancheRate * 100 << "%" << endl;
+        cout << "原始输出长度: " << originalOutput.size() 
+             << ", 修改后输出长度: " << modifiedOutput.size() << endl;
+        cout << "雪崩率: " << avalancheRate * 100 << "%" << endl;
         if(avrageAvalancheRate<0){
             avrageAvalancheRate=avalancheRate;
         }else{
@@ -117,8 +117,8 @@ int main() {
         if(avalancheRate>maxAvalancheRate){
             maxAvalancheRate=avalancheRate;
         }
-        // cout << "计算耗时: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
-        // cout << "----------------------------------------" << endl;
+        cout << "计算耗时: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
+        cout << "----------------------------------------" << endl;
     }
     cout << "最低雪崩率: " << minAvalancheRate * 100 << "%" << endl;
     cout << "最高雪崩率: " << maxAvalancheRate * 100 << "%" << endl;
