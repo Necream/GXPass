@@ -29,16 +29,16 @@ int main() {
     std::cout << "Enter the input string: ";
     std::getline(std::cin, input);
 
-    std::string hash_original = GXPass::fullsafe(input);
+    std::string hash_original = GXPass::fullsafe(input, -1, 256, 256);
 
-    const int trials = 10000; // 多次随机修改
+    const int trials = 1; // 多次随机修改
     double sum_ratio = 0.0;
 
     std::mt19937 rng(std::random_device{}());
 
     for (int i = 0; i < trials; i++) {
         std::string mutated = randomMutate(input, rng);
-        std::string hash_mutated = GXPass::fullsafe(mutated);
+        std::string hash_mutated = GXPass::fullsafe(mutated, -1, 256, 256);
         double ratio = avalancheRatio(hash_original, hash_mutated);
         if (ratio >= 0) sum_ratio += ratio;
     }

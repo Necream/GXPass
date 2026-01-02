@@ -1,4 +1,4 @@
-﻿// Version: 1.5.2    Latest Version: https://github.com/Necream/GXPass
+﻿// Version: 1.6.0    Latest Version: https://github.com/Necream/GXPass
 #ifndef __GXPASS_HPP__
 #define __GXPASS_HPP__
 
@@ -242,24 +242,56 @@ namespace GXPass {
     }
 
     // Full safety Pass
+    // data: 输入数据
+    // version: -1最新，1旧版
+    // PassLen: -1输入长度，-2根据输入长度计算，其他为固定长度
+    // preLen: 预处理长度
+    // chars: 可选字符集
+    // minPassLen: 计算时的最小密码长度
     template<class type = unsigned long long>
-    std::string fullsafe(const std::string data, int PassLen = 256, std::string chars = charset,int minPassLen = 6, int version = -1){ // 新增参数
-        std::string Inputdata=data;
-        for(int i=0;i<Inputdata.size();i++){
-            Inputdata[i]=(Inputdata[i]+i)%127;
+    std::string fullsafe(const std::string data, int version = -1, int PassLen = 256,int preLen = 256, const std::string& chars = charset,int minPassLen = 6){ // 新增参数
+        switch(version){
+            case -1:
+            case 2:{
+                std::string Inputdata=data;
+                for(int i=0;i<Inputdata.size();i++){
+                    Inputdata[i]=(Inputdata[i]+i)%127;
+                }
+                std::string OriginalPass=number2safestring(compile<type>(Inputdata, version), chars);
+                if(PassLen==-1) PassLen=OriginalPass.size();
+                if(PassLen==-2) PassLen=computeSafePassLen(data.size(),minPassLen);
+                if(PassLen<=0) return "";
+                std::string FinalPass="";
+                FinalPass+=OriginalPass[0];
+                std::string StepPass=OriginalPass;
+                for(int i=1;i<PassLen+preLen;i++){
+                    StepPass+=number2safestring(compile<type>(StepPass, version), chars);
+                    FinalPass+=StepPass[i%StepPass.size()];
+                }
+                FinalPass=FinalPass.substr(preLen,PassLen+preLen);
+                return FinalPass;
+                break;
+            }
+            case 1:{
+                std::string Inputdata=data;
+                for(int i=0;i<Inputdata.size();i++){
+                    Inputdata[i]=(Inputdata[i]+i)%127;
+                }
+                std::string OriginalPass=number2safestring(compile<type>(Inputdata, version), chars);
+                if(PassLen==-1) PassLen=OriginalPass.size();
+                if(PassLen==-2) PassLen=computeSafePassLen(data.size(),minPassLen);
+                if(PassLen<=0) return "";
+                std::string FinalPass="";
+                FinalPass+=OriginalPass[0];
+                std::string StepPass=OriginalPass;
+                for(int i=1;i<PassLen;i++){
+                    StepPass+=number2safestring(compile<type>(StepPass, version), chars);
+                    FinalPass+=StepPass[i%StepPass.size()];
+                }
+                return FinalPass;
+                break;
+            }
         }
-        std::string OriginalPass=number2safestring(compile<type>(Inputdata, version), chars);
-        if(PassLen==-1) PassLen=OriginalPass.size();
-        if(PassLen==-2) PassLen=computeSafePassLen(data.size(),minPassLen);
-        if(PassLen<=0) return "";
-        std::string FinalPass="";
-        FinalPass+=OriginalPass[0];
-        std::string StepPass=OriginalPass;
-        for(int i=1;i<PassLen;i++){
-            StepPass=number2safestring(compile<type>(StepPass, version), chars);
-            FinalPass+=StepPass[i%StepPass.size()];
-        }
-        return FinalPass;
     }
 
 

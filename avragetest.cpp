@@ -12,7 +12,7 @@
 #include <cmath>
 #include "GXPass.hpp"
 
-#define Generate(Input) GXPass::fullsafe(Input,-2)
+#define Generate(Input) GXPass::fullsafe(Input,-1)
 using namespace std;
 using namespace GXPass;
 
