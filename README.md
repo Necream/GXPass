@@ -6,7 +6,13 @@ The Latest Version is 1.5.2
 
 本算法可以用于快速生成一个二进制字符串或者用户输入的内容对应的键值，且键值具有抗逆向性。
 本算法具有一定的兼容性。你可以使用指定版本号来防止数据的丢失。
-本算法的安全性并不优秀，但足以保存中等安全风险的密码。（请注意不是数据，算法无法逆向）
+本算法可以用于保存密码，但请注意**用户的盐和软件的胡椒需要开发者自行生成。如果用于高风险用途（例如暴露公网）请设置强密码并将PreLen设置的足够大！**
+
+---
+
+# 算法规划
+
+本算法以后会推出内置的加密算法，可以用于二进制文件的加密。
 
 ---
 
@@ -61,24 +67,18 @@ std::string GXPass::compile(const std::string data, int version = -1)
 你可以使用：
 
 ```cpp
-std::string GXPass::fullsafe(
-    const std::string data,
-    int PassLen = 256,
-    std::string chars = charset,
-    int minPassLen = 6,
-    int version = -1
-)
+std::string fullsafe(const std::string data, int version = -1, int PassLen = 256,int preLen = 256, const std::string& chars = charset,int minPassLen = 6)
 ```
 
 * `data`：需要运算的字符串。
+* `version`：**指定`compile`内核版本，以便防止数据丢失**
 * `PassLen`：输出长度，有三种模式：
-
   * 正整数：确定的输出长度
   * -1：不确定输出长度，由生成内容决定
   * -2：不确定输出长度，使用输入长度和最小安全长度的曲线公式计算
+* `preLen`：预热长度。安全性可以随着预热长度的增加而增加，但是会导致生成时间和空间增加
 * `chars`：指定字符集，如果不设定，会保持默认
 * `minPassLen`：最小安全长度，配合`PassLen=-2`使用时，如果小于该长度，会导致输出较长
-* `version`：指定`compile`内核版本，以便防止数据丢失
 
 ## number2ABC
 
