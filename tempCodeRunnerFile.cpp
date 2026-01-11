@@ -1,182 +1,91 @@
 #include <iostream>
 #include <string>
-#include <vector>
-#include <map>
-#include <unordered_set>
-#include <thread>
-#include <mutex>
-#include <chrono>
-#include <iomanip>
-#include <atomic>
+#include <fstream>
+#include <sstream>
+#include <cstdint>
 
-#include "GXPass.hpp"
+#ifdef _WIN32
+#include <windows.h>
+#include <comdef.h>
+#include <Wbemidl.h>
+#pragma comment(lib, "wbemuuid.lib")
+#endif
 
-using namespace std;
+std::string getDeviceUniqueID() {
+    std::string id;
 
-/* Utility */
+#ifdef _WIN32
+    // Windows: 尝试获取主板序列号
+    HRESULT hres = CoInitializeEx(0, COINIT_MULTITHREADED);
+    if (SUCCEEDED(hres)) {
+        hres = CoInitializeSecurity(NULL, -1, NULL, NULL,
+                                    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
+                                    NULL, EOAC_NONE, NULL);
+        if (SUCCEEDED(hres)) {
+            IWbemLocator *pLoc = nullptr;
+            if (SUCCEEDED(CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER,
+                                          IID_IWbemLocator, (LPVOID *)&pLoc))) {
+                IWbemServices *pSvc = nullptr;
+                if (SUCCEEDED(pLoc->ConnectServer(_bstr_t(L"ROOT\\CIMV2"),
+                                                  NULL, NULL, 0, NULL, 0, 0, &pSvc))) {
+                    CoSetProxyBlanket(pSvc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL,
+                                      RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE,
+                                      NULL, EOAC_NONE);
 
-int hamming_distance(const string& a, const string& b) {
-    int d = 0;
-    size_t n = min(a.size(), b.size());
-    for (size_t i = 0; i < n; ++i) {
-        if (a[i] != b[i]) d++;
+                    IEnumWbemClassObject* pEnumerator = nullptr;
+                    if (SUCCEEDED(pSvc->ExecQuery(
+                        bstr_t("WQL"),
+                        bstr_t("SELECT SerialNumber FROM Win32_BaseBoard"),
+                        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+                        NULL, &pEnumerator))) {
+
+                        IWbemClassObject *pclsObj = nullptr;
+                        ULONG uReturn = 0;
+                        if (pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn) == S_OK && uReturn != 0) {
+                            VARIANT vtProp;
+                            pclsObj->Get(L"SerialNumber", 0, &vtProp, 0, 0);
+                            id = _bstr_t(vtProp.bstrVal);
+                            VariantClear(&vtProp);
+                            pclsObj->Release();
+                        }
+                        pEnumerator->Release();
+                    }
+                    pSvc->Release();
+                }
+                pLoc->Release();
+            }
+        }
+        CoUninitialize();
     }
-    d += abs((int)a.size() - (int)b.size());
-    return d;
+
+    // 如果没有获取到，则使用C盘卷序列号
+    if (id.empty()) {
+        DWORD serial = 0;
+        if (GetVolumeInformationA("C:\\", NULL, 0, &serial, NULL, NULL, NULL, 0)) {
+            id = std::to_string(serial);
+        }
+    }
+
+#else
+    // Linux/macOS: 使用机器 UUID
+    std::ifstream file("/etc/machine-id");
+    if (file.is_open()) {
+        std::getline(file, id);
+    }
+    if (id.empty()) {
+        // 兼容老旧Linux
+        file.close();
+        file.open("/var/lib/dbus/machine-id");
+        if (file.is_open()) std::getline(file, id);
+    }
+#endif
+
+    if (id.empty()) id = "UNKNOWN_DEVICE";
+
+    return id;
 }
-
-/* Thread-safe merge */
-
-mutex freq_mutex;
-mutex set_mutex;
-
-/* Test 1: Character distribution (multithreaded) */
-
-void dist_worker(int start, int end, int passlen, map<char, long long>& local) {
-    for (int i = start; i < end; ++i) {
-        string input = "input_" + to_string(i);
-        string out = GXPass::fullsafe(input, -1, passlen);
-        for (char c : out) local[c]++;
-    }
-}
-
-void test_distribution() {
-    cout << "=== Character Distribution Test ===" << endl;
-
-    const int samples = 50000;
-    const int passlen = 128;
-    int threads = thread::hardware_concurrency();
-    if (threads <= 0) threads = 4;
-
-    vector<thread> pool;
-    vector<map<char, long long>> locals(threads);
-
-    int block = samples / threads;
-
-    for (int t = 0; t < threads; ++t) {
-        int start = t * block;
-        int end = (t == threads - 1) ? samples : start + block;
-        pool.emplace_back(dist_worker, start, end, passlen, ref(locals[t]));
-    }
-
-    for (auto& th : pool) th.join();
-
-    map<char, long long> freq;
-    for (auto& m : locals) {
-        for (auto& p : m) freq[p.first] += p.second;
-    }
-
-    double total = (double)samples * passlen;
-    for (char c : GXPass::charset) {
-        double p = freq[c] / total;
-        cout << c << " : " << fixed << setprecision(6) << p << endl;
-    }
-
-    cout << endl;
-}
-
-/* Test 2: Avalanche (single-thread, deterministic) */
-
-void test_avalanche() {
-    cout << "=== Avalanche Test ===" << endl;
-
-    string base = "password_example_123456";
-    string base_out = GXPass::fullsafe(base);
-
-    for (size_t i = 0; i < base.size(); ++i) {
-        string modified = base;
-        modified[i] ^= 1;
-
-        string mod_out = GXPass::fullsafe(modified);
-        int diff = hamming_distance(base_out, mod_out);
-        double ratio = (double)diff / base_out.size();
-
-        cout << "flip@" << i << " ratio=" << fixed << setprecision(3) << ratio << endl;
-    }
-
-    cout << endl;
-}
-
-/* Test 3: Collision test (multithreaded) */
-
-void collision_worker(int start, int end, int passlen,
-                      unordered_set<string>& global,
-                      atomic<int>& collisions) {
-    unordered_set<string> local;
-
-    for (int i = start; i < end; ++i) {
-        string input = "item_" + to_string(i);
-        string out = GXPass::fullsafe(input, -1, passlen);
-        local.insert(out);
-    }
-
-    lock_guard<mutex> lock(set_mutex);
-    for (auto& s : local) {
-        if (global.count(s)) collisions++;
-        else global.insert(s);
-    }
-}
-
-void test_collision() {
-    cout << "=== Collision Test ===" << endl;
-
-    const int samples = 200000;
-    const int passlen = 64;
-    int threads = thread::hardware_concurrency();
-    if (threads <= 0) threads = 4;
-
-    unordered_set<string> global;
-    atomic<int> collisions(0);
-    vector<thread> pool;
-
-    int block = samples / threads;
-
-    for (int t = 0; t < threads; ++t) {
-        int start = t * block;
-        int end = (t == threads - 1) ? samples : start + block;
-        pool.emplace_back(collision_worker, start, end, passlen,
-                          ref(global), ref(collisions));
-    }
-
-    for (auto& th : pool) th.join();
-
-    cout << "samples=" << samples << endl;
-    cout << "collisions=" << collisions.load() << endl;
-    cout << endl;
-}
-
-/* Test 4: Performance (single-thread, precise) */
-
-void test_performance() {
-    cout << "=== Performance Test ===" << endl;
-
-    vector<int> lengths = {8, 16, 32, 64};
-
-    for (int len : lengths) {
-        string s(len, 'A');
-
-        auto t1 = chrono::high_resolution_clock::now();
-        GXPass::fullsafe(s);
-        auto t2 = chrono::high_resolution_clock::now();
-
-        double ms = chrono::duration<double, milli>(t2 - t1).count();
-        cout << "input_len=" << len
-             << " time_ms=" << fixed << setprecision(3) << ms << endl;
-    }
-
-    cout << endl;
-}
-
-/* Main */
 
 int main() {
-    cout << "GXPass Strength Test Tool (Multithreaded)" << endl << endl;
-
-    test_distribution();
-    test_avalanche();
-    test_collision();
-    test_performance();
-
-    cout << "Done." << endl;
-    return 0;
+    std::string deviceID = getDeviceUniqueID();
+    std::cout << "Device Unique ID: " << deviceID << std::endl;
 }
