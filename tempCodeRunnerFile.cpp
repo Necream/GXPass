@@ -1,91 +1,72 @@
 #include <iostream>
 #include <string>
-#include <fstream>
-#include <sstream>
-#include <cstdint>
+#include <bitset>
+#include <algorithm>
 
-#ifdef _WIN32
-#include <windows.h>
-#include <comdef.h>
-#include <Wbemidl.h>
-#pragma comment(lib, "wbemuuid.lib")
-#endif
+#include "GXPass.hpp"
 
-std::string getDeviceUniqueID() {
-    std::string id;
-
-#ifdef _WIN32
-    // Windows: 尝试获取主板序列号
-    HRESULT hres = CoInitializeEx(0, COINIT_MULTITHREADED);
-    if (SUCCEEDED(hres)) {
-        hres = CoInitializeSecurity(NULL, -1, NULL, NULL,
-                                    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
-                                    NULL, EOAC_NONE, NULL);
-        if (SUCCEEDED(hres)) {
-            IWbemLocator *pLoc = nullptr;
-            if (SUCCEEDED(CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER,
-                                          IID_IWbemLocator, (LPVOID *)&pLoc))) {
-                IWbemServices *pSvc = nullptr;
-                if (SUCCEEDED(pLoc->ConnectServer(_bstr_t(L"ROOT\\CIMV2"),
-                                                  NULL, NULL, 0, NULL, 0, 0, &pSvc))) {
-                    CoSetProxyBlanket(pSvc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL,
-                                      RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE,
-                                      NULL, EOAC_NONE);
-
-                    IEnumWbemClassObject* pEnumerator = nullptr;
-                    if (SUCCEEDED(pSvc->ExecQuery(
-                        bstr_t("WQL"),
-                        bstr_t("SELECT SerialNumber FROM Win32_BaseBoard"),
-                        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-                        NULL, &pEnumerator))) {
-
-                        IWbemClassObject *pclsObj = nullptr;
-                        ULONG uReturn = 0;
-                        if (pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn) == S_OK && uReturn != 0) {
-                            VARIANT vtProp;
-                            pclsObj->Get(L"SerialNumber", 0, &vtProp, 0, 0);
-                            id = _bstr_t(vtProp.bstrVal);
-                            VariantClear(&vtProp);
-                            pclsObj->Release();
-                        }
-                        pEnumerator->Release();
-                    }
-                    pSvc->Release();
-                }
-                pLoc->Release();
-            }
-        }
-        CoUninitialize();
+// 统计 bit 差异
+static size_t bit_diff(const std::string& a, const std::string& b) {
+    size_t diff = 0;
+    size_t n = std::min(a.size(), b.size());
+    for (size_t i = 0; i < n; ++i) {
+        diff += std::bitset<8>(
+            static_cast<unsigned char>(a[i] ^ b[i])
+        ).count();
     }
-
-    // 如果没有获取到，则使用C盘卷序列号
-    if (id.empty()) {
-        DWORD serial = 0;
-        if (GetVolumeInformationA("C:\\", NULL, 0, &serial, NULL, NULL, NULL, 0)) {
-            id = std::to_string(serial);
-        }
-    }
-
-#else
-    // Linux/macOS: 使用机器 UUID
-    std::ifstream file("/etc/machine-id");
-    if (file.is_open()) {
-        std::getline(file, id);
-    }
-    if (id.empty()) {
-        // 兼容老旧Linux
-        file.close();
-        file.open("/var/lib/dbus/machine-id");
-        if (file.is_open()) std::getline(file, id);
-    }
-#endif
-
-    if (id.empty()) id = "UNKNOWN_DEVICE";
-
-    return id;
+    return diff;
 }
 
 int main() {
-    std::string deviceID = getDeviceUniqueID();
-    std::cout << "Device Unique ID: " << deviceID << std::endl;
+    using namespace GXPass;
+
+    // === 固定测试参数（与你 encrypt 中一致）===
+    const std::string base_input =
+        "| PassHash: test_password | DataHash: test_data_hash";
+
+    const std::string numbercharset = "123456789";
+    const int version = -1;
+    const int passLen = 600;
+    const int preLen  = 16;
+
+    // 原始输出
+    std::string ref = fullsafe(
+        base_input, version, passLen, preLen, numbercharset
+    );
+
+    const size_t total_bits = ref.size() * 8;
+    double sum_rate = 0.0;
+    double min_rate = 1.0;
+    size_t tests = 0;
+
+    // === 逐字节逐 bit 翻转 ===
+    for (size_t i = 0; i < base_input.size(); ++i) {
+        for (int bit = 0; bit < 8; ++bit) {
+            std::string modified = base_input;
+            modified[i] ^= (1 << bit);
+
+            std::string out = fullsafe(
+                modified, version, passLen, preLen, numbercharset
+            );
+
+            size_t diff = bit_diff(ref, out);
+            double rate = static_cast<double>(diff) / total_bits;
+
+            sum_rate += rate;
+            min_rate = std::min(min_rate, rate);
+            ++tests;
+        }
+    }
+
+    std::cout << "=====================================\n";
+    std::cout << "GXPass fullsafe Avalanche Test\n";
+    std::cout << "Output length  : " << ref.size() << " bytes\n";
+    std::cout << "Total tests    : " << tests << "\n";
+    std::cout << "Average rate   : "
+              << (sum_rate / tests) * 100.0 << "%\n";
+    std::cout << "Minimum rate   : "
+              << min_rate * 100.0 << "%\n";
+    std::cout << "=====================================\n";
+
+    return 0;
 }

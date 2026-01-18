@@ -1,4 +1,6 @@
-The Latest Version is 1.7.0
+The Latest Version is 1.7.1
+
+v1.7.1修复了std::max和std::min在Windows上不可用的问题。
 
 ---
 

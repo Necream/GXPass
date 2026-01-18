@@ -1,4 +1,4 @@
-﻿// Version: 1.7.0    Latest Version: https://github.com/Necream/GXPass
+﻿// Version: 1.7.1    Latest Version: https://github.com/Necream/GXPass
 #ifndef __GXPASS_HPP__
 #define __GXPASS_HPP__
 
@@ -14,6 +14,15 @@
 #include <fstream>
 #include <cstdint>
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
 #include <windows.h>
 #include <comdef.h>
 #include <Wbemidl.h>
@@ -21,8 +30,6 @@
 #endif
 
 namespace GXPass {
-#define MaxN(a,b) (a > b ? a : b)
-#define MinN(a,b) (a < b ? a : b)
 
     // Get a unique device identifier
     std::string getDeviceUniqueID() {
