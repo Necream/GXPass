@@ -1,4 +1,4 @@
-﻿// Version: 1.7.1    Latest Version: https://github.com/Necream/GXPass
+﻿// Version: 1.7.2    Latest Version: https://github.com/Necream/GXPass
 #ifndef __GXPASS_HPP__
 #define __GXPASS_HPP__
 
@@ -10,7 +10,6 @@
 #include "NCint.hpp" // v1.0.0
 
 // encrypt
-#include <map>
 #include <fstream>
 #include <cstdint>
 #ifdef _WIN32
@@ -30,6 +29,23 @@
 #endif
 
 namespace GXPass {
+    struct map{
+        char value[256];
+        map() {
+            for(int i=0;i<256;i++){
+                value[i]=0;
+            }
+        }
+        // 可写版本（非 const 对象）
+        inline char& operator[](unsigned char c) {
+            return value[c];
+        }
+
+        // 只读版本（const 对象）
+        inline const char& operator[](unsigned char c) const {
+            return value[c];
+        }
+    };
 
     // Get a unique device identifier
     std::string getDeviceUniqueID() {
@@ -411,25 +427,25 @@ namespace GXPass {
         }
         return result;
     }
-    std::map<char,char> getCharsetsMap_encrypy(NCint<> n){
+    map getCharsetsMap_encrypy(NCint<> n){
         std::string origin_chars;
         for(int i=-128;i<128;i++){
             origin_chars+=char(i);
         }
         std::string target_chars=getPermutationAfterN(n,origin_chars);
-        std::map<char,char> charmap;
+        map charmap;
         for(int i=0;i<origin_chars.size();i++){
             charmap[origin_chars[i]]=target_chars[i];
         }
         return charmap;
     }
-    std::map<char,char> getCharsetsMap_decrypy(NCint<> n){
+    map getCharsetsMap_decrypy(NCint<> n){
         std::string origin_chars;
         for(int i=-128;i<128;i++){
             origin_chars+=char(i);
         }
         std::string target_chars=getPermutationAfterN(n,origin_chars);
-        std::map<char,char> charmap;
+        map charmap;
         for(int i=0;i<origin_chars.size();i++){
             charmap[target_chars[i]]=origin_chars[i];
         }
@@ -446,12 +462,12 @@ namespace GXPass {
         NCint<> DictionaryLength=GXPass::fullsafe(FinalPass,version,2,8,numbercharset);
         if(debug) std::cout<<"Init Dictionary Length: "<<DictionaryLength<<std::endl;
         int dl=DictionaryLength;
-        std::map<char,char> charmap=getCharsetsMap_encrypy(GXPass::fullsafe(FinalPass,-1,600,16,numbercharset));
+        map charmap=getCharsetsMap_encrypy(GXPass::fullsafe(FinalPass,-1,600,16,numbercharset));
         std::string encrypted="";
+        int stage=0;
         for(int i=0;i<data.size();i++){
-            static int stage=0;
             if(debug) std::cout<<"Stage "<<++stage<<": Dictionary Length "<<dl<<std::endl;
-            int DictionryStopPoint=MinN(data.size(),i+dl);
+            int DictionryStopPoint=std::min(static_cast<int>(data.size()),i+dl);
             if(debug) std::cout<<"Encrypting data from index "<<i<<" to "<<DictionryStopPoint-1<<std::endl;
             for(;i<DictionryStopPoint;i++){
                 if(debug) std::cout<<"Index "<<i<<"/"<<DictionryStopPoint-1<<": ("<<int(data[i])<<") -> ("<<int(charmap[data[i]])<<")"<<std::endl;
@@ -463,7 +479,7 @@ namespace GXPass {
             }
             NCint<> WindowSize=GXPass::fullsafe(FinalPass,-1,3,8,numbercharset);
             int ws=WindowSize;
-            int ws_final=MinN(ws,i);
+            int ws_final=std::min(ws,i);
             std::string WindowData="";
             for(int j=i-ws_final;j<=i;j++){
                 WindowData+=data[j];
@@ -481,12 +497,12 @@ namespace GXPass {
         NCint<> DictionaryLength=GXPass::fullsafe(FinalPass,version,2,8,numbercharset);
         if(debug) std::cout<<"Init Dictionary Length: "<<DictionaryLength<<std::endl;
         int dl=DictionaryLength;
-        std::map<char,char> charmap=getCharsetsMap_decrypy(GXPass::fullsafe(FinalPass,-1,600,16,numbercharset));
+        map charmap=getCharsetsMap_decrypy(GXPass::fullsafe(FinalPass,-1,600,16,numbercharset));
         std::string decrypted="";
         for(int i=0;i<data.size();i++){
             static int stage=0;
             if(debug) std::cout<<"Stage "<<++stage<<": Dictionary Length "<<dl<<std::endl;
-            int DictionryStopPoint=MinN(data.size(),i+dl);
+            int DictionryStopPoint=std::min(static_cast<int>(data.size()),i+dl);
             if(debug) std::cout<<"Decrypting data from index "<<i<<" to "<<DictionryStopPoint-1<<std::endl;
             for(;i<DictionryStopPoint;i++){
                 if(debug) std::cout<<"Index "<<i<<"/"<<DictionryStopPoint-1<<": ("<<int(data[i])<<") -> ("<<int(charmap[data[i]])<<")"<<std::endl;
@@ -498,7 +514,7 @@ namespace GXPass {
             }
             NCint<> WindowSize=GXPass::fullsafe(FinalPass,-1,3,8,numbercharset);
             int ws=WindowSize;
-            int ws_final=MinN(ws,i);
+            int ws_final=std::min(ws,i);
             std::string WindowData="";
             for(int j=i-ws_final;j<=i;j++){
                 WindowData+=decrypted[j];
